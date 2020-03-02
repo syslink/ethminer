@@ -123,6 +123,7 @@ public:
 
     static void signalHandler(int sig)
     {
+        std::cout << "signalHandler:" << sig << std::endl;
         dev::setThreadName("main");
 
         switch (sig)
@@ -369,6 +370,8 @@ public:
         app.add_option("--tstart", m_FarmSettings.tempStart, "", true)->check(CLI::Range(30, 100));
 
 
+        bool cl_test = false;
+        app.add_flag("-T,--test", cl_test, "");
         // Exception handling is held at higher level
         app.parse(argc, argv);
         if (bhelp)
@@ -427,6 +430,9 @@ public:
         {
             m_mode = OperationMode::Mining;
         }
+
+        if (cl_test)
+            return true;
 
         if (!m_shouldListDevices && m_mode != OperationMode::Simulation)
         {
@@ -1206,8 +1212,32 @@ public:
 private:
     void doMiner()
     {
-
+        std::cout << __FILE__<<":"<<__LINE__<<" "<<__FUNCTION__ << std::endl;
         new PoolManager(m_PoolSettings);
+        Farm::f().onSolutionFound([&](const Solution& sol) {
+            std::cout << "onSolutionFound:" << sol.nonce << std::endl;
+            //Farm::f().stop();
+        });
+        std::cout << "Farm restart" << std::endl;
+        Farm::f().restart();
+        std::string a;
+        std::cout << "wait setWork" << std::endl;
+        {
+            WorkPackage newWp;                
+            newWp.header = h256("0xdec46e697a1077af2622d0b377ceca75f62b2181ba49f2f991fd1972def9c2e8");
+            std::cout << "header:" << newWp.header.hex() << std::endl;
+            newWp.seed = h256("0x789a");
+            newWp.boundary = h256("0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+            newWp.job = "test";
+            newWp.epoch = 0;
+            newWp.block = 1;
+            Farm::f().setWork(newWp);
+        }
+        std::cout << "wait stop" << std::endl;std::cin >> a;
+        std::cout << "stop..." << std::endl;
+        Farm::f().stop();
+        std::cout << "exit..." << std::endl;
+        return;
         if (m_mode != OperationMode::Simulation)
             for (auto conn : m_PoolSettings.connections)
                 cnote << "Configured pool " << conn->Host() + ":" + to_string(conn->Port());

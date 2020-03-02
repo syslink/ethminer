@@ -19,11 +19,6 @@ namespace dev
 namespace eth
 {
 
-// WARNING: Do not change the value of the following constant
-// unless you are prepared to make the neccessary adjustments
-// to the assembly code for the binary kernels.
-const size_t c_maxSearchResults = 15;
-
 struct CLChannel : public LogChannel
 {
     static const char* name() { return EthOrange "cl"; }
@@ -269,152 +264,172 @@ CLMiner::~CLMiner()
     DEV_BUILD_LOG_PROGRAMFLOW(cllog, "cl-" << m_index << " CLMiner::~CLMiner() end");
 }
 
-// NOTE: The following struct must match the one defined in
-// ethash.cl
-struct SearchResults
+void CLMiner::sleep(int second)
 {
-    struct
-    {
-        uint32_t gid;
-        // Can't use h256 data type here since h256 contains
-        // more than raw data. Kernel returns raw mix hash.
-        uint32_t mix[8];
-        uint32_t pad[7];  // pad to 16 words for easy indexing
-    } rslt[c_maxSearchResults];
-    uint32_t count;
-    uint32_t hashCount;
-    uint32_t abort;
-};
+    boost::system_time const timeout =
+        boost::get_system_time() + boost::posix_time::seconds(3);
+    boost::mutex::scoped_lock l(x_work);
+    m_new_work_signal.timed_wait(l, timeout);
+}
 
+bool CLMiner::dagPrepare()
+{
+    m_abortqueue.clear();
+    if (!initEpoch())
+        return false;  // This will simply exit the thread
+    m_abortqueue.push_back(cl::CommandQueue(m_context[0], m_device));
+    return true;
+}
+
+void CLMiner::setSearchArgs(const WorkPackage& w)
+{
+    uint32_t zerox3[3] = {0, 0, 0};
+    // Upper 64 bits of the boundary.
+    const uint64_t target = (uint64_t)(u64)((u256)w.boundary >> 192);
+    assert(target > 0);
+
+    // Update header constant buffer.
+    m_queue[0].enqueueWriteBuffer(
+        m_header[0], CL_TRUE, 0, w.header.size, w.header.data());
+    // zero the result count
+    m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_TRUE,
+        offsetof(SearchResults, count),
+        m_settings.noExit ? sizeof(zerox3[0]) : sizeof(zerox3), zerox3);
+
+    m_searchKernel.setArg(0, m_searchBuffer[0]);  // Supply output buffer to kernel.
+    m_searchKernel.setArg(1, m_header[0]);        // Supply header buffer to kernel.
+    m_searchKernel.setArg(2, m_dag[0]);           // Supply DAG buffer to kernel.
+    m_searchKernel.setArg(3, m_dagItems);
+    m_searchKernel.setArg(5, target);
+
+#ifdef DEV_BUILD
+    if (g_logOptions & LOG_SWITCH)
+        cllog << "Switch time: "
+                << std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - m_workSwitchStart)
+                        .count()
+                << " us.";
+#endif
+}
+
+
+void CLMiner::readResult(SearchResults& results)
+{
+    uint32_t zerox3[3] = {0, 0, 0};
+    //sleep(1);
+    m_queue[0].enqueueReadBuffer(m_searchBuffer[0], CL_TRUE,
+        offsetof(SearchResults, count),
+        (m_settings.noExit ? 1 : 2) * sizeof(results.count), (void*)&results.count);
+    std::cout << "enqueueReadBuffer-2 cout:" << results.count << " size:" << sizeof(results.rslt[0]) << std::endl;
+    if (results.count)
+    {
+        m_queue[0].enqueueReadBuffer(m_searchBuffer[0], CL_TRUE, 0,
+            (results.count%16) * sizeof(results.rslt[0]), (void*)&results);
+        //return;
+        // Reset search buffer if any solution found.
+        if (m_settings.noExit)
+            m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_FALSE,
+                offsetof(SearchResults, count), sizeof(results.count), zerox3);
+        // below code may out the if statement
+        // clean the solution count, hash count, and abort flag
+        if (!m_settings.noExit)
+            m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_TRUE,
+                offsetof(SearchResults, count), sizeof(zerox3), zerox3);
+    }
+}
+
+void CLMiner::handleResult(const WorkPackage& current, const SearchResults& results)
+{
+    // Report results while the kernel is running.
+    for (uint32_t i = 0; i < results.count; i++)
+    {
+        uint64_t nonce = current.startNonce + results.rslt[i].gid;
+        std::cout << "results.count-" << i << " nonce:" << nonce << " lastNonce:" << m_lastNonce << std::endl;
+        if (nonce != m_lastNonce)
+        {
+            m_lastNonce = nonce;
+            h256 mix;
+            memcpy(mix.data(), (char*)results.rslt[i].mix, sizeof(results.rslt[i].mix));
+
+            Farm::f().submitProof(Solution{
+                nonce, mix, current, std::chrono::steady_clock::now(), m_index});
+            cllog << EthWhite << "Job: " << current.header.abridged() << " Sol: 0x"
+                    << toHex(nonce) << EthReset;
+        }
+    }
+}
+
+void CLMiner::search(uint64_t startNonce){
+    //static bool once = false;if(once) return;once=true;
+    m_searchKernel.setArg(4, startNonce);
+    std::cout << "gsize:" << m_settings.globalWorkSize << " lsize:" << m_settings.localWorkSize << std::endl;
+    //m_queue[0].finish();
+    //sleep(1);
+    m_queue[0].enqueueNDRangeKernel(
+        m_searchKernel, cl::NullRange, m_settings.globalWorkSize, m_settings.localWorkSize);
+    std::cout << "call search:" << std::endl;
+}
+
+SearchResults results_s[1] = {{.count = 0}};
 void CLMiner::workLoop()
 {
     // Memory for zero-ing buffers. Cannot be static or const because crashes on macOS.
     uint32_t zerox3[3] = {0, 0, 0};
 
     uint64_t startNonce = 0;
-
+    SearchResults& results = results_s[0];
     // The work package currently processed by GPU.
     WorkPackage current;
     current.header = h256();
-
+    std::cout << "initDevice" << std::endl;
     if (!initDevice())
     return;
+    std::cout << "initDevice after" << std::endl;
 
     try
     {
+        int wn = 0;
         while (!shouldStop())
         {
-
+            std::cout << "while " << wn++ <<" m_queue:" << m_queue.size() << std::endl;
             // Read results.
-            volatile SearchResults results;
-
             if (m_queue.size())
-            {
-                // no need to read the abort flag.
-                m_queue[0].enqueueReadBuffer(m_searchBuffer[0], CL_TRUE,
-                    offsetof(SearchResults, count),
-                    (m_settings.noExit ? 1 : 2) * sizeof(results.count), (void*)&results.count);
-                if (results.count)
-                {
-                    m_queue[0].enqueueReadBuffer(m_searchBuffer[0], CL_TRUE, 0,
-                        results.count * sizeof(results.rslt[0]), (void*)&results);
-                    // Reset search buffer if any solution found.
-                    if (m_settings.noExit)
-                        m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_FALSE,
-                            offsetof(SearchResults, count), sizeof(results.count), zerox3);
-                }
-                // clean the solution count, hash count, and abort flag
-                if (!m_settings.noExit)
-                    m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_FALSE,
-                        offsetof(SearchResults, count), sizeof(zerox3), zerox3);
-            }
-            else
-                results.count = 0;
+                readResult(results);
 
             // Wait for work or 3 seconds (whichever the first)
             const WorkPackage w = work();
             if (!w)
             {
-                boost::system_time const timeout =
-                    boost::get_system_time() + boost::posix_time::seconds(3);
-                boost::mutex::scoped_lock l(x_work);
-                m_new_work_signal.timed_wait(l, timeout);
+                std::cout << "continue" << std::endl;
+                sleep(3);
                 continue;
             }
+            std::cout << "---GO!" << std::endl;
 
             if (current.header != w.header)
             {
-
                 if (current.epoch != w.epoch)
-                {
-                    m_abortqueue.clear();
-
-                    if (!initEpoch())
-                        break;  // This will simply exit the thread
-
-                    m_abortqueue.push_back(cl::CommandQueue(m_context[0], m_device));
-                }
-
-                // Upper 64 bits of the boundary.
-                const uint64_t target = (uint64_t)(u64)((u256)w.boundary >> 192);
-                assert(target > 0);
-
+                    if (!dagPrepare()) break;
+                setSearchArgs(w);
                 startNonce = w.startNonce;
-
-                // Update header constant buffer.
-                m_queue[0].enqueueWriteBuffer(
-                    m_header[0], CL_FALSE, 0, w.header.size, w.header.data());
-                // zero the result count
-                m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_FALSE,
-                    offsetof(SearchResults, count),
-                    m_settings.noExit ? sizeof(zerox3[0]) : sizeof(zerox3), zerox3);
-
-                m_searchKernel.setArg(0, m_searchBuffer[0]);  // Supply output buffer to kernel.
-                m_searchKernel.setArg(1, m_header[0]);        // Supply header buffer to kernel.
-                m_searchKernel.setArg(2, m_dag[0]);           // Supply DAG buffer to kernel.
-                m_searchKernel.setArg(3, m_dagItems);
-                m_searchKernel.setArg(5, target);
-
-#ifdef DEV_BUILD
-                if (g_logOptions & LOG_SWITCH)
-                    cllog << "Switch time: "
-                          << std::chrono::duration_cast<std::chrono::microseconds>(
-                                 std::chrono::steady_clock::now() - m_workSwitchStart)
-                                 .count()
-                          << " us.";
-#endif
             }
+
 
             // Run the kernel.
-            m_searchKernel.setArg(4, startNonce);
-            m_queue[0].enqueueNDRangeKernel(
-                m_searchKernel, cl::NullRange, m_settings.globalWorkSize, m_settings.localWorkSize);
-
-            if (results.count)
+            if(results.count > 0)
             {
-                // Report results while the kernel is running.
-                for (uint32_t i = 0; i < results.count; i++)
-                {
-                    uint64_t nonce = current.startNonce + results.rslt[i].gid;
-                    if (nonce != m_lastNonce)
-                    {
-                        m_lastNonce = nonce;
-                        h256 mix;
-                        memcpy(mix.data(), (char*)results.rslt[i].mix, sizeof(results.rslt[i].mix));
-
-                        Farm::f().submitProof(Solution{
-                            nonce, mix, current, std::chrono::steady_clock::now(), m_index});
-                        cllog << EthWhite << "Job: " << current.header.abridged() << " Sol: 0x"
-                              << toHex(nonce) << EthReset;
-                    }
-                }
+                handleResult(current, results);
+                results.count = 0;
             }
 
+            search(startNonce);
             current = w;  // kernel now processing newest work
             current.startNonce = startNonce;
             // Increase start nonce for following kernel execution.
             startNonce += m_settings.globalWorkSize;
             // Report hash count
+
+            std::cout << "updateHashRate hashCount:" << results.hashCount << " noExit:" << m_settings.noExit << " current.startNonce:" << current.startNonce << " startNonce:" << startNonce << " m.globalWorkSize:" << m_settings.globalWorkSize << std::endl;
             if (m_settings.noExit)
                 updateHashRate(m_settings.globalWorkSize, 1);
             else
@@ -456,7 +471,7 @@ void CLMiner::enumDevices(std::map<string, DeviceDescriptor>& _DevicesCollection
         ClPlatformTypeEnum platformType = ClPlatformTypeEnum::Unknown;
         if (platformName == "AMD Accelerated Parallel Processing")
             platformType = ClPlatformTypeEnum::Amd;
-        else if (platformName == "Clover" || platformName == "Intel Gen OCL Driver")
+        else if (platformName == "Clover" || platformName == "Intel Gen OCL Driver" || platformName == "Apple")
             platformType = ClPlatformTypeEnum::Clover;
         else if (platformName == "NVIDIA CUDA")
             platformType = ClPlatformTypeEnum::Nvidia;
@@ -871,7 +886,7 @@ bool CLMiner::initEpoch_internal()
         // create mining buffers
         ETHCL_LOG("Creating mining buffer");
         m_searchBuffer.clear();
-        m_searchBuffer.emplace_back(m_context[0], CL_MEM_WRITE_ONLY, sizeof(SearchResults));
+        m_searchBuffer.emplace_back(m_context[0], CL_MEM_READ_WRITE, sizeof(SearchResults));
 
         m_dagKernel.setArg(1, m_light[0]);
         m_dagKernel.setArg(2, m_dag[0]);

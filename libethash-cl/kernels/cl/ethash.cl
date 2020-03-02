@@ -262,7 +262,7 @@ __kernel void search(
 )
 {
 #ifdef FAST_EXIT
-    if (g_output->abort)
+    if (g_output->abort > MAX_OUTPUTS - 1u)
         return;
 #endif
 
@@ -390,9 +390,10 @@ __kernel void search(
 
     if (as_ulong(as_uchar8(state[0]).s76543210) <= target) {
 #ifdef FAST_EXIT
-        atomic_inc(&g_output->abort);
+        uint abort = atomic_inc(&g_output->abort);
+        if(abort > MAX_OUTPUTS - 1u) return;
 #endif
-        uint slot = min(MAX_OUTPUTS - 1u, atomic_inc(&g_output->count));
+        uint slot = min(MAX_OUTPUTS - 1u, abort); //
         g_output->rslt[slot].gid = gid;
         g_output->rslt[slot].mix[0] = mixhash[0].s0;
         g_output->rslt[slot].mix[1] = mixhash[0].s1;
@@ -402,6 +403,11 @@ __kernel void search(
         g_output->rslt[slot].mix[5] = mixhash[2].s1;
         g_output->rslt[slot].mix[6] = mixhash[3].s0;
         g_output->rslt[slot].mix[7] = mixhash[3].s1;
+        //read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+        do{
+            atomic_cmpxchg(&g_output->count, slot, slot+1);
+        }while(g_output->count <= slot);
+        //atomic_inc(&g_output->count);
     }
 }
 

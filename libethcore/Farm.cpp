@@ -203,6 +203,7 @@ void Farm::setWork(WorkPackage const& _newWp)
     Guard l(x_minerWork);
 
     // Retrieve appropriate EpochContext
+    std::cout << "curEpoch=" << m_currentWp.epoch << " newEpoch=" << _newWp.epoch << std::endl;
     if (m_currentWp.epoch != _newWp.epoch)
     {
         ethash::epoch_context _ec = ethash::get_global_epoch_context(_newWp.epoch);
@@ -256,11 +257,13 @@ bool Farm::start()
     DEV_BUILD_LOG_PROGRAMFLOW(cnote, "Farm::start() begin");
     Guard l(x_minerWork);
 
+    std::cout << "miner_size=" << m_miners.size() << std::endl;
     // Start all subscribed miners if none yet
     if (!m_miners.size())
     {
         for (auto it = m_DevicesCollection.begin(); it != m_DevicesCollection.end(); it++)
         {
+            std::cout << "  minerType:" << (int)(it->second.subscriptionType) << std::endl;
             TelemetryAccountType minerTelemetry;
 #if ETH_ETHASHCUDA
             if (it->second.subscriptionType == DeviceSubscriptionTypeEnum::Cuda)
@@ -291,6 +294,7 @@ bool Farm::start()
             if (minerTelemetry.prefix.empty())
                 continue;
             m_telemetry.miners.push_back(minerTelemetry);
+            std::cout << "m_miners.back()->startWorking();" << std::endl;
             m_miners.back()->startWorking();
         }
 
@@ -493,6 +497,8 @@ void Farm::submitProofAsync(Solution const& _s)
     if (!m_Settings.noEval)
     {
         Result r = EthashAux::eval(_s.work.epoch, _s.work.header, _s.nonce);
+        //std::cout << "r.value=" << r.value.hex() << " r.mix=" << r.mixHash.hex() << std::endl;
+        //std::cout << "s.value=" << _s.work.boundary.hex() << " s.mix=" << _s.mixHash.hex() << std::endl;
         if (r.value > _s.work.boundary)
         {
             accountSolution(_s.midx, SolutionAccountingEnum::Failed);

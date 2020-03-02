@@ -40,6 +40,27 @@ namespace dev
 {
 namespace eth
 {
+// WARNING: Do not change the value of the following constant
+// unless you are prepared to make the neccessary adjustments
+// to the assembly code for the binary kernels.
+const size_t c_maxSearchResults = 15;
+// NOTE: The following struct must match the one defined in
+// ethash.cl
+struct SearchResults
+{
+    struct
+    {
+        uint32_t gid;
+        // Can't use h256 data type here since h256 contains
+        // more than raw data. Kernel returns raw mix hash.
+        uint32_t mix[8];
+        uint32_t pad[7];  // pad to 16 words for easy indexing
+    } rslt[c_maxSearchResults];
+    uint32_t count;
+    uint32_t hashCount;
+    uint32_t abort;
+};
+
 class CLMiner : public Miner
 {
 public:
@@ -57,8 +78,13 @@ protected:
     void kick_miner() override;
 
 private:
-    
     void workLoop() override;
+    bool dagPrepare();
+    void setSearchArgs(const WorkPackage& w);
+    void search(uint64_t nonce);
+    void readResult(SearchResults& results);
+    void handleResult(const WorkPackage& current, const SearchResults& results);
+    void sleep(int second);
 
     vector<cl::Context> m_context;
     vector<cl::CommandQueue> m_queue;

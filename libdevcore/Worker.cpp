@@ -31,6 +31,7 @@ using namespace dev;
 void Worker::startWorking()
 {
     DEV_BUILD_LOG_PROGRAMFLOW(cnote, "Worker::startWorking() begin");
+    std::cout << "Worker::startWorking() begin" << std::endl;
     //	cnote << "startWorking for thread" << m_name;
     Guard l(x_work);
     if (m_work)
@@ -54,10 +55,13 @@ void Worker::startWorking()
 
                 try
                 {
+                    std::cout << "workLoop..." << std::endl;
                     workLoop();
+                    std::cout << "workLoop after" << std::endl;
                 }
                 catch (std::exception const& _e)
                 {
+                    std::cout << "workLoop exception" << std::endl;
                     clog(WarnChannel) << "Exception thrown in Worker thread: " << _e.what();
                     if (g_exitOnError)
                     {
@@ -82,6 +86,7 @@ void Worker::startWorking()
     }
     while (m_state == WorkerState::Starting)
         this_thread::sleep_for(chrono::microseconds(20));
+    std::cout << "Worker::startWorking() end" << std::endl;
     DEV_BUILD_LOG_PROGRAMFLOW(cnote, "Worker::startWorking() end");
 }
 
