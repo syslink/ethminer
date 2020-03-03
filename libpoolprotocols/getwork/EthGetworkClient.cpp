@@ -18,7 +18,8 @@ EthGetworkClient::EthGetworkClient(int worktimeout, unsigned farmRecheckPeriod)
     m_resolver(g_io_service),
     m_endpoints(),
     m_getwork_timer(g_io_service),
-    m_worktimeout(worktimeout)
+    m_worktimeout(worktimeout),
+    m_txQueue(64)
 {
     m_jSwBuilder.settings_["indentation"] = "";
 
