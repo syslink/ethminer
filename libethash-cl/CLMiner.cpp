@@ -344,7 +344,6 @@ void CLMiner::handleResult(const WorkPackage& current, const SearchResults& resu
     for (uint32_t i = 0; i < results.count; i++)
     {
         uint64_t nonce = current.startNonce + results.rslt[i].gid;
-        std::cout << "results.count-" << i << " nonce:" << nonce << " lastNonce:" << m_lastNonce << std::endl;
         if (nonce != m_lastNonce)
         {
             m_lastNonce = nonce;
@@ -362,12 +361,11 @@ void CLMiner::handleResult(const WorkPackage& current, const SearchResults& resu
 void CLMiner::search(uint64_t startNonce){
     //static bool once = false;if(once) return;once=true;
     m_searchKernel.setArg(4, startNonce);
-    std::cout << "gsize:" << m_settings.globalWorkSize << " lsize:" << m_settings.localWorkSize << std::endl;
     //m_queue[0].finish();
     //sleep(1);
     m_queue[0].enqueueNDRangeKernel(
         m_searchKernel, cl::NullRange, m_settings.globalWorkSize, m_settings.localWorkSize);
-    std::cout << "call search:" << std::endl;
+    std::cout << "call search:" << m_settings.globalWorkSize << " lsize:" << m_settings.localWorkSize << std::endl;
 }
 
 SearchResults results_s[1] = {{.count = 0}};
@@ -381,10 +379,8 @@ void CLMiner::workLoop()
     // The work package currently processed by GPU.
     WorkPackage current;
     current.header = h256();
-    std::cout << "initDevice" << std::endl;
     if (!initDevice())
     return;
-    std::cout << "initDevice after" << std::endl;
 
     try
     {
@@ -400,11 +396,14 @@ void CLMiner::workLoop()
             const WorkPackage w = work();
             if (!w)
             {
-                std::cout << "continue" << std::endl;
                 sleep(3);
                 continue;
             }
             std::cout << "---GO!" << std::endl;
+            std::cout << "work: epoch=" << w.epoch << " block=" << w.block << std::endl;
+            std::cout << "work: difficult=" << w.boundary.hex() << std::endl;
+            std::cout << "work: header=" << w.header.hex() << std::endl;
+            std::cout << "work: seed=" << w.seed.hex() << std::endl;
 
             if (current.header != w.header)
             {
@@ -428,8 +427,6 @@ void CLMiner::workLoop()
             // Increase start nonce for following kernel execution.
             startNonce += m_settings.globalWorkSize;
             // Report hash count
-
-            std::cout << "updateHashRate hashCount:" << results.hashCount << " noExit:" << m_settings.noExit << " current.startNonce:" << current.startNonce << " startNonce:" << startNonce << " m.globalWorkSize:" << m_settings.globalWorkSize << std::endl;
             if (m_settings.noExit)
                 updateHashRate(m_settings.globalWorkSize, 1);
             else

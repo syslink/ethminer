@@ -370,8 +370,8 @@ public:
         app.add_option("--tstart", m_FarmSettings.tempStart, "", true)->check(CLI::Range(30, 100));
 
 
-        bool cl_test = false;
-        app.add_flag("-T,--test", cl_test, "");
+        testMiner = false;
+        app.add_flag("-T,--test", testMiner, "");
         // Exception handling is held at higher level
         app.parse(argc, argv);
         if (bhelp)
@@ -431,7 +431,7 @@ public:
             m_mode = OperationMode::Mining;
         }
 
-        if (cl_test)
+        if (testMiner)
             return true;
 
         if (!m_shouldListDevices && m_mode != OperationMode::Simulation)
@@ -758,7 +758,10 @@ public:
         new Farm(m_DevicesCollection, m_FarmSettings, m_CUSettings, m_CLSettings, m_CPSettings);
 
         // Run Miner
-        doMiner();
+        if (testMiner)
+            minerTest();
+        else
+            doMiner();
     }
 
     void help()
@@ -1210,7 +1213,8 @@ public:
     }
 
 private:
-    void doMiner()
+    bool testMiner;
+    void minerTest()
     {
         std::cout << __FILE__<<":"<<__LINE__<<" "<<__FUNCTION__ << std::endl;
         new PoolManager(m_PoolSettings);
@@ -1223,7 +1227,7 @@ private:
         std::string a;
         std::cout << "wait setWork" << std::endl;
         {
-            WorkPackage newWp;                
+            WorkPackage newWp;
             newWp.header = h256("0xdec46e697a1077af2622d0b377ceca75f62b2181ba49f2f991fd1972def9c2e8");
             std::cout << "header:" << newWp.header.hex() << std::endl;
             newWp.seed = h256("0x789a");
@@ -1237,18 +1241,25 @@ private:
         std::cout << "stop..." << std::endl;
         Farm::f().stop();
         std::cout << "exit..." << std::endl;
-        return;
+    }
+
+    void doMiner()
+    {
+        std::cout << __FILE__<<":"<<__LINE__<<" "<<__FUNCTION__ << std::endl;
+        new PoolManager(m_PoolSettings);
+
         if (m_mode != OperationMode::Simulation)
             for (auto conn : m_PoolSettings.connections)
                 cnote << "Configured pool " << conn->Host() + ":" + to_string(conn->Port());
 
 #if API_CORE
-
+        std::cout << "addr:" << m_api_address << " port:" << m_api_port << " passwd:" << m_api_password << std::endl;
         ApiServer api(m_api_address, m_api_port, m_api_password);
         if (m_api_port)
             api.start();
 
 #endif
+        std::cout << "ApiServer-end" << std::endl;
 
         // Start PoolManager
         PoolManager::p().start();
@@ -1258,10 +1269,13 @@ private:
         m_cliDisplayTimer.async_wait(m_io_strand.wrap(boost::bind(
             &MinerCLI::cliDisplayInterval_elapsed, this, boost::asio::placeholders::error)));
 
+        std::cout << "ApiServer-end-2:" << g_running << std::endl;
         // Stay in non-busy wait till signals arrive
         unique_lock<mutex> clilock(m_climtx);
-        while (g_running)
+        while (g_running){
             g_shouldstop.wait(clilock);
+        }
+        std::cout << "wait-end:" << std::endl;
 
 #if API_CORE
 
