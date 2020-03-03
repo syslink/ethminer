@@ -36,19 +36,12 @@ DeviceDescriptor Miner::getDescriptor()
 void Miner::setWork(WorkPackage const& _work)
 {
     {
-
         boost::mutex::scoped_lock l(x_work);
-        std::cout << "---setWork:" << paused() << std::endl;
-
         // Void work if this miner is paused
         if (paused())
             m_work.header = h256();
         else
             m_work = _work;
-        if(!m_work)
-            std::cout << "---setWork empty" << std::endl;
-        else
-            std::cout << "---setWork full" << std::endl;
 
 #ifdef DEV_BUILD
         m_workSwitchStart = std::chrono::steady_clock::now();
@@ -174,10 +167,6 @@ bool Miner::initEpoch()
 WorkPackage Miner::work() const
 {
     boost::mutex::scoped_lock l(x_work);
-    if(!m_work)
-        std::cout << "---getWork empty" << std::endl;
-    else
-        std::cout << "---getWork full" << std::endl;
     return m_work;
 }
 

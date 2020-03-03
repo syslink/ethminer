@@ -123,7 +123,6 @@ public:
 
     static void signalHandler(int sig)
     {
-        std::cout << "signalHandler:" << sig << std::endl;
         dev::setThreadName("main");
 
         switch (sig)
@@ -1253,13 +1252,11 @@ private:
                 cnote << "Configured pool " << conn->Host() + ":" + to_string(conn->Port());
 
 #if API_CORE
-        std::cout << "addr:" << m_api_address << " port:" << m_api_port << " passwd:" << m_api_password << std::endl;
         ApiServer api(m_api_address, m_api_port, m_api_password);
         if (m_api_port)
             api.start();
 
 #endif
-        std::cout << "ApiServer-end" << std::endl;
 
         // Start PoolManager
         PoolManager::p().start();
@@ -1269,13 +1266,11 @@ private:
         m_cliDisplayTimer.async_wait(m_io_strand.wrap(boost::bind(
             &MinerCLI::cliDisplayInterval_elapsed, this, boost::asio::placeholders::error)));
 
-        std::cout << "ApiServer-end-2:" << g_running << std::endl;
         // Stay in non-busy wait till signals arrive
         unique_lock<mutex> clilock(m_climtx);
         while (g_running){
             g_shouldstop.wait(clilock);
         }
-        std::cout << "wait-end:" << std::endl;
 
 #if API_CORE
 
