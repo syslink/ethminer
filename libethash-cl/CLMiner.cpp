@@ -312,7 +312,7 @@ void CLMiner::setSearchArgs(const WorkPackage& w)
 #endif
 }
 
-
+//vector<Event> waitEvents;
 void CLMiner::readResult(SearchResults& results)
 {
     uint32_t zerox3[3] = {0, 0, 0};
@@ -324,18 +324,18 @@ void CLMiner::readResult(SearchResults& results)
     if (results.count)
     {
         m_queue[0].enqueueReadBuffer(m_searchBuffer[0], CL_TRUE, 0,
-            (results.count%16) * sizeof(results.rslt[0]), (void*)&results);
+            results.count * sizeof(results.rslt[0]), (void*)&results);
         //return;
         // Reset search buffer if any solution found.
         if (m_settings.noExit)
             m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_FALSE,
                 offsetof(SearchResults, count), sizeof(results.count), zerox3);
         // below code may out the if statement
+    }
         // clean the solution count, hash count, and abort flag
         if (!m_settings.noExit)
-            m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_TRUE,
+            m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_FALSE,
                 offsetof(SearchResults, count), sizeof(zerox3), zerox3);
-    }
 }
 
 void CLMiner::handleResult(const WorkPackage& current, const SearchResults& results)

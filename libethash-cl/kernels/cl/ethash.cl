@@ -262,7 +262,7 @@ __kernel void search(
 )
 {
 #ifdef FAST_EXIT
-    if (g_output->abort > MAX_OUTPUTS - 1u)
+    if (g_output->abort > 0)
         return;
 #endif
 
