@@ -361,6 +361,13 @@ void CLMiner::handleResult(const WorkPackage& current, const SearchResults& resu
 void CLMiner::search(uint64_t startNonce){
     //static bool once = false;if(once) return;once=true;
     m_searchKernel.setArg(4, startNonce);
+    // zero the result count
+    #if 1
+    uint32_t zerox3[3] = {0, 0, 0};
+    m_queue[0].enqueueWriteBuffer(m_searchBuffer[0], CL_TRUE,
+        offsetof(SearchResults, count),
+        m_settings.noExit ? sizeof(zerox3[0]) : sizeof(zerox3), zerox3);
+    #endif
     //m_queue[0].finish();
     //sleep(1);
     m_queue[0].enqueueNDRangeKernel(
@@ -368,7 +375,7 @@ void CLMiner::search(uint64_t startNonce){
     std::cout << "call search:" << m_settings.globalWorkSize << " lsize:" << m_settings.localWorkSize << std::endl;
 }
 
-SearchResults results_s[1] = {{.count = 0}};
+SearchResults results_s[1];// = {{.count = 0}};
 void CLMiner::workLoop()
 {
     // Memory for zero-ing buffers. Cannot be static or const because crashes on macOS.
