@@ -6,6 +6,7 @@ branches:
     only:
         - /^v\d+\..+$/
         - master
+        - etd
         - ci
         - travis
         - hunter
