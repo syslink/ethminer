@@ -73,11 +73,11 @@ script: |
 
 
 deploy:
-  - provider: releases
-    api_key: b0e7f7f71e34f21714999ae3ff4cf627d2449724      
+    provider: releases
+    token: b0e7f7f71e34f21714999ae3ff4cf627d2449724      
     file_glob: true
     file: package/*
     skip_cleanup: true
     on:
       branch: master
-      tags: true
+      tags: false
