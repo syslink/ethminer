@@ -304,7 +304,6 @@ void CLMiner::workLoop()
         while (!shouldStop())
         {
 
-            // Read results.
             volatile SearchResults results;
 
             if (m_queue.size())
@@ -343,7 +342,6 @@ void CLMiner::workLoop()
 
             if (current.header != w.header)
             {
-
                 if (current.epoch != w.epoch)
                 {
                     m_abortqueue.clear();

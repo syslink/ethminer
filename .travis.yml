@@ -1,83 +1,80 @@
 language: cpp
 env:
   global:
-    - secure: "Pu2hPyp3Ym3hmkW9iXVZObfE7tA3ITSaeR05VguJ9czJAMgaT7LmEN4LDoR2sQHbRAv+8QngbNUFpglzvZLIBIEefyEA39DThZptkKJ+hCUerRajfmXywSXCwPC7A1uTEY1YoUDlGvxVZA3Z7f17GFtKtDuHjLSWmrxHAM6wjK+qCweEq0umJJ+N+2DX2UpVLlWgYoknYSGipfjHRBEgPp4NRh08yvpDTFYSVQeL0qL7LbyAtkx6qhLCK6JZ2CsP3INQOoRwc8jP6VIFbuoHl3lkOzayNM49/e9wDdZ8FGqp0HjUFi7EYi/78Uvje7CrgdCiSVwoHbtAvcyPYcxu+qXzwh4AxslRL7UJtOzTbRaXfJvqt2oqtttFjD0Dk/iwnAthg7Su6UohivcUVj/9p1X1KdDbLJcoTag/MBcZP7VJDgnHjyqYwVciT1ZV0RWfuLBI584vFMTlsdzFXt384mUTCN02BOnRnw3Miq4a5irFXnDy23TdGersk7b//FPIBIhPv/wxCjUkJzTmt7ska5jACb/FHUoOyrE5mQLSVZbh/zlsIKf8yWZy7q7caowmwyPYZtAqNZWj1JmVs2c+0RmX2c76kCTHX4ocCcDx1QqV49/+R1Ah+pA7X7kcr9MklzL9z/lkAA7z5SF/UzdoGfBNicMKz5hUFixBqZ04ATw="
+  - secure: Pu2hPyp3Ym3hmkW9iXVZObfE7tA3ITSaeR05VguJ9czJAMgaT7LmEN4LDoR2sQHbRAv+8QngbNUFpglzvZLIBIEefyEA39DThZptkKJ+hCUerRajfmXywSXCwPC7A1uTEY1YoUDlGvxVZA3Z7f17GFtKtDuHjLSWmrxHAM6wjK+qCweEq0umJJ+N+2DX2UpVLlWgYoknYSGipfjHRBEgPp4NRh08yvpDTFYSVQeL0qL7LbyAtkx6qhLCK6JZ2CsP3INQOoRwc8jP6VIFbuoHl3lkOzayNM49/e9wDdZ8FGqp0HjUFi7EYi/78Uvje7CrgdCiSVwoHbtAvcyPYcxu+qXzwh4AxslRL7UJtOzTbRaXfJvqt2oqtttFjD0Dk/iwnAthg7Su6UohivcUVj/9p1X1KdDbLJcoTag/MBcZP7VJDgnHjyqYwVciT1ZV0RWfuLBI584vFMTlsdzFXt384mUTCN02BOnRnw3Miq4a5irFXnDy23TdGersk7b//FPIBIhPv/wxCjUkJzTmt7ska5jACb/FHUoOyrE5mQLSVZbh/zlsIKf8yWZy7q7caowmwyPYZtAqNZWj1JmVs2c+0RmX2c76kCTHX4ocCcDx1QqV49/+R1Ah+pA7X7kcr9MklzL9z/lkAA7z5SF/UzdoGfBNicMKz5hUFixBqZ04ATw=
 branches:
-    only:
-        - /^v\d+\..+$/
-        - master
-        - etd
-        - ci
-        - travis
-        - hunter
-        - coverity
-        - /^release.*$/
+  only:
+  - "/^v\\d+\\..+$/"
+  - master
+  - etd
+  - ci
+  - travis
+  - hunter
+  - coverity
+  - "/^release.*$/"
 matrix:
-    include:
-        - os: linux
-          dist: trusty
-          sudo: required
-          env:
-              - CUDA=OFF
-              - CUDA_VERSION=9
+  include:
+  - os: linux
+    dist: trusty
+    sudo: required
+    env:
+    - CUDA=OFF
+    - CUDA_VERSION=9
 cache:
-    directories:
-        - $HOME/.local
+  directories:
+  - "$HOME/.local"
 before_install:
-  - |
-    if [ "$TRAVIS_OS_NAME" = linux ]; then
-      echo "Checking format of sourcecode..."
-      find . -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.cu' -o -name '*.cuh' \) -print0 | xargs -r0 clang-format -i
-      git diff --color # --exit-code
+- |
+  if [ "$TRAVIS_OS_NAME" = linux ]; then
+    echo "Checking format of sourcecode..."
+    find . -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.cu' -o -name '*.cuh' \) -print0 | xargs -r0 clang-format -i
+    git diff --color # --exit-code
+  fi
+- |
+  if [ "$TRAVIS_OS_NAME" = linux ]; then
+    sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+    sudo apt-get -q update
+    sudo apt-get -qy install g++-6
+    scripts/install_cmake.sh
+    . scripts/install-cuda-ubuntu1604.sh $CUDA_VERSION
+    pyenv global 3.6
+    pip install --user requests gitpython
+    if [ "$CUDA_VERSION" = "8" ]; then
+      sudo apt-get -qy install g++-5
+      export CC=gcc-5
+      export CXX=g++-5
+    else
+      export CC=gcc-6
+      export CXX=g++-6
     fi
-  - |
-    if [ "$TRAVIS_OS_NAME" = linux ]; then
-      sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-      sudo apt-get -q update
-      sudo apt-get -qy install g++-6
-      scripts/install_cmake.sh
-      . scripts/install-cuda-ubuntu1604.sh $CUDA_VERSION
-      pyenv global 3.6
-      pip install --user requests gitpython
-      if [ "$CUDA_VERSION" = "8" ]; then
-        sudo apt-get -qy install g++-5
-        export CC=gcc-5
-        export CXX=g++-5
-      else
-        export CC=gcc-6
-        export CXX=g++-6
-      fi
-    elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
-      curl -L https://developer.nvidia.com/compute/cuda/9.1/Prod/local_installers/cuda_9.1.128_mac -o $HOME/cuda_9.1.128_mac.dmg
-      hdiutil mount $HOME/cuda_9.1.128_mac.dmg
-      sleep 5
-      ls -ltr /Volumes/CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/MacOS
-      sudo /Volumes/CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/MacOS/CUDAMacOSXInstaller --accept-eula --no-window; export BREW_STATUS=$?
-      echo "Brew status $BREW_STATUS"
-      if [ $BREW_STATUS -ne 0 ]; then
-        echo "Brew Failed"
-        exit $BREW_STATUS
-      fi
-      HOMEBREW_NO_AUTO_UPDATE=1 brew install -q python3
-      pip3 install -q requests gitpython
+  elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
+    curl -L https://developer.nvidia.com/compute/cuda/9.1/Prod/local_installers/cuda_9.1.128_mac -o $HOME/cuda_9.1.128_mac.dmg
+    hdiutil mount $HOME/cuda_9.1.128_mac.dmg
+    sleep 5
+    ls -ltr /Volumes/CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/MacOS
+    sudo /Volumes/CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/MacOS/CUDAMacOSXInstaller --accept-eula --no-window; export BREW_STATUS=$?
+    echo "Brew status $BREW_STATUS"
+    if [ $BREW_STATUS -ne 0 ]; then
+      echo "Brew Failed"
+      exit $BREW_STATUS
     fi
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install -q python3
+    pip3 install -q requests gitpython
+  fi
 script: |
-    cmake -DHUNTER_JOBS_NUMBER=4 -DETHASHCUDA=$CUDA -DETHASHCL=ON -DAPICORE=ON -H. -Bbuild
-    cmake --build build --target package -- -j4
-    build/ethminer/ethminer --help
-    if [ "$TRAVIS_OS_NAME" = linux ]; then ldd -v build/ethminer/ethminer; fi
-    if [ "$TRAVIS_OS_NAME" = osx ]; then otool -L build/ethminer/ethminer; fi
-    . build/ethminer/buildinfo.sh
-    mkdir package
-    mv build/ethminer.tar.gz package/$PROJECT_NAME-$PROJECT_VERSION-cuda-$CUDA_VERSION-$SYSTEM_NAME-$SYSTEM_PROCESSOR.tar.gz
-
-
+  cmake -DHUNTER_JOBS_NUMBER=4 -DETHASHCUDA=$CUDA -DETHASHCL=ON -DAPICORE=ON -H. -Bbuild
+  cmake --build build --target package -- -j4
+  build/ethminer/ethminer --help
+  if [ "$TRAVIS_OS_NAME" = linux ]; then ldd -v build/ethminer/ethminer; fi
+  if [ "$TRAVIS_OS_NAME" = osx ]; then otool -L build/ethminer/ethminer; fi
+  . build/ethminer/buildinfo.sh
+  mkdir package
+  mv build/ethminer.tar.gz package/$PROJECT_NAME-$PROJECT_VERSION-cuda-$CUDA_VERSION-$SYSTEM_NAME-$SYSTEM_PROCESSOR.tar.gz
 deploy:
-    provider: releases
-    token: b0e7f7f71e34f21714999ae3ff4cf627d2449724      
-    file_glob: true
-    file: package/*
-    skip_cleanup: true
-    on:
-      branch: master
-      tags: false
+  provider: releases
+  api_key:
+    secure: PWiAdErCyhG2+iHgJ70+obRwCKVV044pLWON6zsK+GsfL4RXnNljVvVlHTZGOx+bBiAls5kr5G8y/6aDzQWLzQnFb++naOJzg4srZQu4FGzIo3QO93eazAKVvq5J5vj0TuEho+phOJPdkRDbFZU4EYaBXAr3dkBg/y7akqBa7lbcKVsC4dC5UBHZbvjiP6FOH/DJZfMEcvC9wWVL2e+AUCxVFD5Z0URKWvYQ6d4Y2d6AQvWSFB5ATPA2XeCnPLBIh+pWyfQKJIedjHZWcTImpsNJtDtcjLDZkpKA0BwvYpZngk+dV72G2vORDm5ax64b/iwdXO5t3tofAaDnKh60KtgK1/JMxt0rZ6bQ7eccMD+SBcu2x9yjVWmaILM9uEl17rBDnIf8qDqoRsOaiWAbEWw3BPCB67JIoGdRZ2tzPBxD6are5EKlgmi9QzfN7Vy01hPXZazrLKJFb6QapcgJzNMZw2r+nbSE1TDLGTk/3Qa5NkUrBgEvyvYUgeva5m3ldN/3rdv0aBQon7QJgvWExmsUVHVNfhF8dGpp+uDISFWoyz/EvD1ZnuTgMTOsqvra+B+nWsFbw0oLV9OzgNMNRdcfTDfwYGeXga6fK9gOy+PKBCIFib04gcuaimJd0V0rKtqK+yakreY5XRd+3LQ07/rW+7Fx6SyAj20xdaeBRHE=
+  file: package/*
+  on:
+    repo: syslink/ethminer
+  skip_cleanup: 'true'
