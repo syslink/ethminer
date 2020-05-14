@@ -74,9 +74,10 @@ script: |
 
 deploy:
   - provider: releases
-    api_key: 1e0c10c84c1b490ca3b42f506111a40bffce09e9      
+    api_key: b0e7f7f71e34f21714999ae3ff4cf627d2449724      
     file_glob: true
     file: package/*
     skip_cleanup: true
     on:
+      branch: master
       tags: true
