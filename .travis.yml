@@ -69,7 +69,7 @@ script: |
   if [ "$TRAVIS_OS_NAME" = osx ]; then otool -L build/ethminer/ethminer; fi
   . build/ethminer/buildinfo.sh
   mkdir package
-  mv build/ethminer.tar.gz package/$PROJECT_NAME-$PROJECT_VERSION-cuda-$CUDA_VERSION-$SYSTEM_NAME-$SYSTEM_PROCESSOR.tar.gz
+  mv build/ethminer/ethminer package/ethminer
 deploy:
   provider: releases
   api_key:
