@@ -41,7 +41,7 @@ install: |
 
 build_script:
   - call "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\Community\Common7\Tools\VsMSBuildCmd.bat"
-  - set CMAKE_ARGS=-G "Visual Studio 15 2017 Win64" -H. -Bbuild -DETHASHCUDA=ON -DAPICORE=ON -DHUNTER_JOBS_NUMBER=%NUMBER_OF_PROCESSORS%
+  - set CMAKE_ARGS=-G "Visual Studio 15 2017 Win64" -H. -Bbuild -DETHASHCUDA=OFF -DAPICORE=ON -DHUNTER_JOBS_NUMBER=%NUMBER_OF_PROCESSORS%
   - if "%CUDA_VER%" NEQ "10.0" set CMAKE_ARGS=%CMAKE_ARGS% -T v140
   - cmake %CMAKE_ARGS%
   - cmake --build build --config Release --target package
@@ -64,6 +64,6 @@ deploy:
   draft: false
   artifact: ethminer
   auth_token:
-    secure: uDRcvbW+9GIyKlZ9guJfWOQ6jg0An6eULg6mEkYgdKn/GVNpYSKvO5oHxP0U8a+e
+    secure: PWiAdErCyhG2+iHgJ70+obRwCKVV044pLWON6zsK+GsfL4RXnNljVvVlHTZGOx+bBiAls5kr5G8y/6aDzQWLzQnFb++naOJzg4srZQu4FGzIo3QO93eazAKVvq5J5vj0TuEho+phOJPdkRDbFZU4EYaBXAr3dkBg/y7akqBa7lbcKVsC4dC5UBHZbvjiP6FOH/DJZfMEcvC9wWVL2e+AUCxVFD5Z0URKWvYQ6d4Y2d6AQvWSFB5ATPA2XeCnPLBIh+pWyfQKJIedjHZWcTImpsNJtDtcjLDZkpKA0BwvYpZngk+dV72G2vORDm5ax64b/iwdXO5t3tofAaDnKh60KtgK1/JMxt0rZ6bQ7eccMD+SBcu2x9yjVWmaILM9uEl17rBDnIf8qDqoRsOaiWAbEWw3BPCB67JIoGdRZ2tzPBxD6are5EKlgmi9QzfN7Vy01hPXZazrLKJFb6QapcgJzNMZw2r+nbSE1TDLGTk/3Qa5NkUrBgEvyvYUgeva5m3ldN/3rdv0aBQon7QJgvWExmsUVHVNfhF8dGpp+uDISFWoyz/EvD1ZnuTgMTOsqvra+B+nWsFbw0oLV9OzgNMNRdcfTDfwYGeXga6fK9gOy+PKBCIFib04gcuaimJd0V0rKtqK+yakreY5XRd+3LQ07/rW+7Fx6SyAj20xdaeBRHE=
   on:
     appveyor_repo_tag: true
